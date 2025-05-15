@@ -1,0 +1,32 @@
+{
+    "manifest_version": 3,
+    "name": "온비드 낙찰 확률 예측",
+    "version": "1.0",
+    "description": "온비드 경매 사이트에서 낙찰 확률과 적정 입찰가를 예측해주는 확장 프로그램",
+    "icons": {
+      "16": "images/icon16.png",
+      "48": "images/icon48.png",
+      "128": "images/icon128.png"
+    },
+    "action": {
+      "default_popup": "popup/popup.html",
+      "default_icon": {
+        "16": "images/icon16.png",
+        "48": "images/icon48.png",
+        "128": "images/icon128.png"
+      }
+    },
+    "permissions": [
+      "activeTab",
+      "storage"
+    ],
+    "host_permissions": [
+      "https://www.onbid.co.kr/*"
+    ],
+    "content_scripts": [
+      {
+        "matches": ["*://www.onbid.co.kr/*"],
+        "js": ["scripts/content.js"]
+      }
+    ]
+  }
