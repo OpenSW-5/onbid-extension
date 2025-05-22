@@ -13,7 +13,6 @@ model = joblib.load('pipeline.pkl')
 def predict():
     data = request.get_json()
     bidAmount = data.get('bidAmount')
-    minBidPrice = data.get('minBidPrice')
     
     if bidAmount is None:
         return jsonify({'error': '필수 입력값인 입찰가 누락'}), 400
@@ -21,20 +20,21 @@ def predict():
     # 모델 입력값 구성
     input_df = pd.DataFrame([{
         '입찰가': bidAmount,
-        '최저입찰가': minBidPrice,
         '일련번호': data.get('id', ''),
         '대분류': data.get('mainCategory', ''),
         '중분류': data.get('subCategory', ''),
         '물건정보': data.get('title', ''),
-        '제조사/모델명': data.get('name', ''),
+        '제조사 / 모델명': data.get('name', ''),
         '입찰마감': data.get('endDate', ''),
         '입찰방식': data.get('bidType', ''),
-        '제조사/모델명': data.get('assetType', ''),
+        '처분방식 / 자산구분': data.get('assetType', ''),
         '용도': data.get('usage', ''),
         '제조사': data.get('manufacturer', ''),
         '모델명': data.get('modelName', ''),
         '감정평가금액': data.get('evaluationPrice', ''),
-        '유찰횟수': data.get('failureCount', '')
+        '유찰횟수': data.get('failureCount', ''),
+        '집행기관': data.get('agency', ''),
+        '최저입찰가': data.get('minBidPrice', '')
     }])
 
     # 확률 예측 실행

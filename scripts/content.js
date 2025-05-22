@@ -15,6 +15,7 @@ function extractItemInfo() {
     modelName: '',
     evaluationPrice: '',
     failureCount: '',
+    agency: '',
     tableData: {}
   };
   
@@ -102,6 +103,8 @@ function extractItemInfo() {
 
     itemInfo.failureCount = dataMap["유찰횟수"] || '';
     
+    itemInfo.agency = dataMap["집행기관"] || '';
+
     if (dataMap["최저입찰가"]) {
       const priceText = dataMap["최저입찰가"].replace(/[^\d]/g, '');
       if (priceText) {

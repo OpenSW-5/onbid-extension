@@ -252,6 +252,7 @@ function updateItemInfo(data) {
     modelName: data.modelName || '',
     evaluationPrice: data.evaluationPrice || '',
     failureCount: data.failureCount || '',
+    agency: data.agency || '',
     tableData: data.tableData || {}
   };
 
