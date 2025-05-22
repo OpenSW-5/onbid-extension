@@ -2,17 +2,26 @@
 function extractItemInfo() {
   let itemInfo = {
     id: '',
+    mainCategory: '',
+    subCategory: '',
+    title: '',
     name: '',
     minBidPrice: 0,
     endDate: '',
     bidType: '일반 경쟁 입찰',
-    tableData: []
+    assetType: '',
+    usage: '',
+    manufacturer: '',
+    modelName: '',
+    evaluationPrice: '',
+    failureCount: '',
+    tableData: {}
   };
   
   try {
     // 1. 물건관리번호 추출
     const idText = document.querySelector('.txt_top p')?.textContent || '';
-    const match = idText.match(/물건관리번호\s*:\s*(\d{4}-\d{4}-\d{6})/);
+    const match = idText.match(/물건관리번호\s*:\s*([\w-]+)/);
     if (match) {
       itemInfo.id = match[1];  // 예: 2025-0100-001163
       console.log('물건관리번호:', itemInfo.id);
@@ -22,10 +31,10 @@ function extractItemInfo() {
     const categoryText = document.querySelector('.tpoint_18.fs14')?.textContent.trim() || '';
     const categoryMatch = categoryText.match(/\[(.*?)\/(.*?)\]/);
     if (categoryMatch) {
-      itemInfo.category = categoryMatch[1].trim(); // 대분류
-      itemInfo.itemName = categoryMatch[2].trim(); // 중분류
-      console.log('대분류: ', itemInfo.category);
-      console.log('중분류: ', itemInfo.itemName);
+      itemInfo.mainCategory = categoryMatch[1].trim(); // 대분류
+      itemInfo.subCategory = categoryMatch[2].trim(); // 중분류
+      console.log('대분류: ', itemInfo.mainCategory);
+      console.log('중분류: ', itemInfo.subCategory);
     }
 
     // 3. 공고 제목 추출
@@ -62,12 +71,21 @@ function extractItemInfo() {
       itemInfo.tableData = dataMap;
       console.log('테이블: ', itemInfo.tableData);
     }
-    
-    if (dataMap["제조사 / 모델명"]) {
-      itemInfo.name = dataMap["제조사 / 모델명"];
-      console.log('제조사/모델명에서 추출한 물품명:', itemInfo.name);
-    }
 
+    // 최종 정보 추출
+    itemInfo.assetType = dataMap["처분방식 / 자산구분"] || '';
+    
+    itemInfo.usage = dataMap["용도"] || '';
+    
+    if (dataMap['제조사 / 모델명']) {
+      const parts = dataMap['제조사 / 모델명'].split('/').map(s=>s.trim());
+      itemInfo.manufacturer = parts[0] || '';
+      itemInfo.modelName    = parts[1] || '';
+      itemInfo.name         = dataMap['제조사 / 모델명'];
+    } 
+
+    itemInfo.evaluationPrice = dataMap["감정평가금액"] || dataMap['최초예정가액'] || '';
+    
     if (dataMap["입찰방식"]) {
       itemInfo.bidType = dataMap["입찰방식"];
       console.log('입찰방식에서 추출한 입찰유형:', itemInfo.bidType);
@@ -82,6 +100,8 @@ function extractItemInfo() {
       }
     }
 
+    itemInfo.failureCount = dataMap["유찰횟수"] || '';
+    
     if (dataMap["최저입찰가"]) {
       const priceText = dataMap["최저입찰가"].replace(/[^\d]/g, '');
       if (priceText) {
@@ -90,14 +110,13 @@ function extractItemInfo() {
       }
     }
 
-    console.log('추출된 정보:', itemInfo);
+    console.log('추출된 최종 정보:', itemInfo);
     return { success: true, data: itemInfo };
   } catch (error) {
     console.error('정보 추출 중 오류 발생:', error);
     return { success: false, error: error.message };
   }
 }
-
 
 // 현재 페이지가 온비드 사이트인지 확인하는 함수
 function isOnbidWebsite() {
@@ -115,7 +134,7 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     const result = extractItemInfo();
     sendResponse(result);
   }
-  return true; // 비동기 응답을 위해 true 반환
+  return true;
 });
 
 // 페이지가 완전히 로드된 후 데이터 초기화
@@ -140,11 +159,10 @@ window.addEventListener('load', function() {
   }
 });
 
-// 필요한 경우 페이지에 UI 요소 추가
+// 페이지에 UI 요소 추가
 function addUIElementsToPage() {
   if (!isOnbidWebsite()) return;
-  
-  // 중복 추가 방지
+
   if (document.getElementById('onbid-extension-container')) return;
   
   const container = document.createElement('div');
