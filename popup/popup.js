@@ -87,7 +87,6 @@ function showErrorMessage(message) {
 function updateUIWithDefaultValues() {
   // 초기 게이지 값 설정
   updateProbabilityGauge(70);
-  updateProfitGauge(70);
 }
 
 // ================================
@@ -109,9 +108,8 @@ function handleAnalyzeClick() {
 async function analyzeSpecificBid(bidAmount) {
   try {
     const probability = await getPredictedProbability(bidAmount);
-    const { profit, profitRate } = calculateProfitMetrics(bidAmount);
     
-    updateAnalysisResults(probability, bidAmount, profit, profitRate);
+    updateAnalysisResults(probability, bidAmount);
   } catch (error) {
     console.error('분석 중 오류 발생:', error);
     fallbackCalculation(bidAmount);
@@ -120,9 +118,18 @@ async function analyzeSpecificBid(bidAmount) {
 
 async function getPredictedProbability(bidAmount) {
   try {
+    // 서버 상태 확인
+    const healthCheck = await fetch('http://localhost:5001/health');
+    if (!healthCheck.ok) {
+      throw new Error('서버에 연결할 수 없습니다');
+    }
+
     const response = await fetch('http://localhost:5001/predict', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
       body: JSON.stringify({ 
         bidAmount: bidAmount, 
         ...itemInfo
@@ -130,6 +137,8 @@ async function getPredictedProbability(bidAmount) {
     });
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error('서버 응답 오류:', response.status, errorText);
       throw new Error(`서버 응답 오류: ${response.status}`);
     }
 
@@ -140,7 +149,7 @@ async function getPredictedProbability(bidAmount) {
       throw new Error(`잘못된 확률 데이터: ${probability}`);
     }
 
-    return probability;
+    return Math.max(0, Math.min(100, probability)); // 확률 범위 내 반환
   } catch (error) {
     console.error('API 통신 오류:', error);
     // API 실패 시 로컬 계산으로 대체
@@ -150,9 +159,8 @@ async function getPredictedProbability(bidAmount) {
 
 function fallbackCalculation(bidAmount) {
   const probability = calculateProbabilityLocally(bidAmount);
-  const { profit, profitRate } = calculateProfitMetrics(bidAmount);
   
-  updateAnalysisResults(probability, bidAmount, profit, profitRate);
+  updateAnalysisResults(probability, bidAmount);
 }
 
 // ================================
@@ -170,14 +178,6 @@ function calculateProbabilityLocally(bidAmount) {
   return 20;
 }
 
-function calculateProfitMetrics(bidAmount) {
-  const marketPrice = parseCurrency(document.getElementById('marketPrice').textContent);
-  const profit = marketPrice - bidAmount;
-  const profitRate = ((marketPrice - bidAmount) / bidAmount) * 100;
-  
-  return { profit, profitRate };
-}
-
 function getCompetitionLevel(probability) {
   if (probability > 80) return "낮음 (1.1배)";
   if (probability > 50) return "보통 (1.5배)";
@@ -188,47 +188,20 @@ function getCompetitionLevel(probability) {
 // 5. UI 업데이트 함수들
 // ================================
 
-function updateAnalysisResults(probability, bidAmount, profit, profitRate) {
+function updateAnalysisResults(probability, bidAmount) {
   updateProbabilityGauge(probability);
-  updateProfitInfo(bidAmount, profit, profitRate);
 }
 
 function updateProbabilityGauge(probability) {
   const elements = {
     gauge: document.getElementById('probabilityGauge'),
-    marker: document.getElementById('probabilityMarker'),
     value: document.getElementById('probabilityValue'),
     rate: document.getElementById('competitionRate')
   };
   
   elements.gauge.style.width = `${probability}%`;
-  elements.marker.style.left = `${probability}%`;
   elements.value.textContent = `${probability}%`;
   elements.rate.textContent = `경쟁률: ${getCompetitionLevel(probability)}`;
-}
-
-function updateProfitInfo(bidAmount, profit, profitRate) {
-  const elements = {
-    expectedPrice: document.getElementById('expectedWinPrice'),
-    profit: document.getElementById('expectedProfit'),
-    profitRate: document.getElementById('profitRate'),
-    profitGauge: document.getElementById('profitGauge')
-  };
-  
-  elements.expectedPrice.textContent = formatCurrency(bidAmount) + '원';
-  elements.profit.textContent = formatCurrency(profit) + '원';
-  elements.profitRate.textContent = `수익률: ${profitRate.toFixed(1)}%`;
-  
-  // 수익률 게이지 (최대 100%)
-  const gaugeWidth = Math.min(profitRate * 3, 100);
-  elements.profitGauge.style.width = `${gaugeWidth}%`;
-}
-
-function updateProfitGauge(value) {
-  const profitGaugeEl = document.getElementById('profitGauge');
-  if (profitGaugeEl) {
-    profitGaugeEl.style.width = `${value}%`;
-  }
 }
 
 function updateItemInfo(data) {
@@ -250,7 +223,7 @@ function updateItemInfo(data) {
     usage: data.usage || '',
     manufacturer: data.manufacturer || '',
     modelName: data.modelName || '',
-    evaluationPrice: data.evaluationPrice || '',
+    evaluationPrice: parseCurrency(data.evaluationPrice) || 0,
     failureCount: data.failureCount || '',
     agency: data.agency || '',
     tableData: data.tableData || {}
@@ -261,9 +234,8 @@ function updateItemInfo(data) {
   
   // 추천 입찰가 계산 및 설정
   const recommendedPrice = calculateRecommendedPrice(data.minBidPrice);
-  const marketPrice = calculateMarketPrice(data.minBidPrice);
   
-  updateRecommendedInfo(recommendedPrice, marketPrice);
+  updateRecommendedInfo(recommendedPrice);
   
   // 초기 분석 실행
   analyzeSpecificBid(recommendedPrice);
@@ -273,28 +245,21 @@ function updateBasicInfo(data) {
   const elements = {
     title: document.getElementById('title'),
     minBidPrice: document.getElementById('minBidPrice'),
-    endDate: document.getElementById('endDate'),
-    bidType: document.getElementById('bidType')
+    endDate: document.getElementById('endDate')
   };
   
   elements.title.textContent = data.title || '정보 없음';
   elements.minBidPrice.textContent = formatCurrency(data.minBidPrice) + '원';
   elements.endDate.textContent = data.endDate || '정보 없음';
-  elements.bidType.textContent = data.bidType || '일반 경쟁 입찰';
 }
 
-function updateRecommendedInfo(recommendedPrice, marketPrice) {
+function updateRecommendedInfo(recommendedPrice) {
   document.getElementById('recommendedPrice').textContent = formatCurrency(recommendedPrice) + '원';
-  document.getElementById('marketPrice').textContent = formatCurrency(marketPrice) + '원';
   document.getElementById('bidAmount').value = formatCurrency(recommendedPrice);
 }
 
 function calculateRecommendedPrice(minBidPrice) {
   return Math.round(minBidPrice * 1.32);
-}
-
-function calculateMarketPrice(minBidPrice) {
-  return Math.round(minBidPrice * 1.52);
 }
 
 // ================================
