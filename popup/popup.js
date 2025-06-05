@@ -3,6 +3,8 @@
 // ================================
 
 let itemInfo = {}; // 전역 변수로 물품 정보 저장
+let storedRecommendBid = null; // 서버에서 받은 recommend_bid 저장
+let currentPredictedRate = null; // 현재 predicted_rate 저장
 
 document.addEventListener('DOMContentLoaded', function() {
   initializeExtension();
@@ -107,18 +109,75 @@ function handleAnalyzeClick() {
 
 async function analyzeSpecificBid(bidAmount) {
   try {
-    const probability = await getPredictedProbability(bidAmount);
-    
-    updateAnalysisResults(probability, bidAmount);
+    // 최초 predict 요청: recommend_bid 와 predicted_rate를 받고 저장
+    const result = await getPredictionFromServer(bidAmount);
+
+    const probability = result.predicted_rate;
+    const recommendedBid = result.recommend_bid;
+
+    if (typeof probability === 'number' && typeof recommendedBid === 'number') {
+      storedRecommendBid = recommendedBid; // 최초에 받은 recommend_bid 저장
+      currentPredictedRate = probability;  // predicted_rate 저장
+      updateAnalysisResults(probability, bidAmount);
+      updateRecommendedInfo(recommendedBid);
+    } else {
+      throw new Error('예측 결과가 올바르지 않습니다');
+    }
+
+    // 이후 prob_predict API를 사용하여 predicted_rate만 업데이트
+    await updatePredictedRateOnly(bidAmount);
+
   } catch (error) {
     console.error('분석 중 오류 발생:', error);
-    fallbackCalculation(bidAmount);
+    const probability = calculateProbabilityLocally(bidAmount);
+    updateAnalysisResults(probability, bidAmount);
   }
 }
 
-async function getPredictedProbability(bidAmount) {
+async function updatePredictedRateOnly(bidAmount) {
   try {
-    // 서버 상태 확인
+    if (storedRecommendBid === null) {
+      console.warn('recommend_bid가 저장되어 있지 않아 prob_predict를 호출하지 않습니다.');
+      return;
+    }
+
+    // prob_predict 호출 - bidAmount와 itemInfo를 보내지만 recommend_bid는 서버가 아닌 클라이언트가 관리
+    const response = await fetch('http://localhost:5001/prob_predict', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({
+        bidAmount: bidAmount,
+        ...itemInfo
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('prob_predict 서버 응답 오류:', response.status, errorText);
+      return;
+    }
+
+    const data = await response.json();
+
+    if (typeof data.predicted_rate === 'number') {
+      currentPredictedRate = data.predicted_rate;
+      // recommend_bid는 최초 받은 값을 유지하며 predicted_rate만 업데이트
+      updateAnalysisResults(currentPredictedRate, bidAmount);
+      updateRecommendedInfo(storedRecommendBid);
+    } else {
+      console.warn('prob_predict에서 predicted_rate가 없음');
+    }
+
+  } catch (error) {
+    console.error('prob_predict 호출 중 오류:', error);
+  }
+}
+
+async function getPredictionFromServer(bidAmount) {
+  try {
     const healthCheck = await fetch('http://localhost:5001/health');
     if (!healthCheck.ok) {
       throw new Error('서버에 연결할 수 없습니다');
@@ -126,12 +185,12 @@ async function getPredictedProbability(bidAmount) {
 
     const response = await fetch('http://localhost:5001/predict', {
       method: 'POST',
-      headers: { 
+      headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
       },
-      body: JSON.stringify({ 
-        bidAmount: bidAmount, 
+      body: JSON.stringify({
+        bidAmount: bidAmount,
         ...itemInfo
       })
     });
@@ -143,24 +202,14 @@ async function getPredictedProbability(bidAmount) {
     }
 
     const result = await response.json();
-    const probability = result.predicted_rate;
 
-    if (typeof probability !== 'number' || isNaN(probability)) {
-      throw new Error(`잘못된 확률 데이터: ${probability}`);
-    }
-
-    return Math.max(0, Math.min(100, probability)); // 확률 범위 내 반환
+    return {
+      predicted_rate: result.predicted_rate,
+      recommend_bid: result.recommend_bid
+    };
   } catch (error) {
-    console.error('API 통신 오류:', error);
-    // API 실패 시 로컬 계산으로 대체
-    return calculateProbabilityLocally(bidAmount);
+    console.error('통신 오류:', error);
   }
-}
-
-function fallbackCalculation(bidAmount) {
-  const probability = calculateProbabilityLocally(bidAmount);
-  
-  updateAnalysisResults(probability, bidAmount);
 }
 
 // ================================
@@ -212,6 +261,7 @@ function updateItemInfo(data) {
   // 전역 itemInfo 업데이트
   itemInfo = {
     id: data.id || '',
+    category: data.category || '',
     mainCategory: data.mainCategory || '',
     subCategory: data.subCategory || '',
     title: data.title || '',
@@ -232,13 +282,12 @@ function updateItemInfo(data) {
   // 기본 정보 UI 업데이트
   updateBasicInfo(data);
   
-  // 추천 입찰가 계산 및 설정
-  const recommendedPrice = calculateRecommendedPrice(data.minBidPrice);
+  // fallback용 기본 추천가
+  const fallbackRecommendedPrice = calculateRecommendedPrice(data.minBidPrice);
+  updateRecommendedInfo(fallbackRecommendedPrice);
   
-  updateRecommendedInfo(recommendedPrice);
-  
-  // 초기 분석 실행
-  analyzeSpecificBid(recommendedPrice);
+  // 서버 분석 호출
+  analyzeSpecificBid(fallbackRecommendedPrice);
 }
 
 function updateBasicInfo(data) {
@@ -255,7 +304,6 @@ function updateBasicInfo(data) {
 
 function updateRecommendedInfo(recommendedPrice) {
   document.getElementById('recommendedPrice').textContent = formatCurrency(recommendedPrice) + '원';
-  document.getElementById('bidAmount').value = formatCurrency(recommendedPrice);
 }
 
 function calculateRecommendedPrice(minBidPrice) {

@@ -2,6 +2,7 @@
 function extractItemInfo() {
   let itemInfo = {
     id: '',
+    category: '',
     mainCategory: '',
     subCategory: '',
     title: '',
@@ -30,6 +31,7 @@ function extractItemInfo() {
 
     // 2. 카테고리 추출
     const categoryText = document.querySelector('.tpoint_18.fs14')?.textContent.trim() || '';
+    itemInfo.category = categoryText;
     const categoryMatch = categoryText.match(/\[(.*?)\/(.*?)\]/);
     if (categoryMatch) {
       itemInfo.mainCategory = categoryMatch[1].trim(); // 대분류
@@ -65,7 +67,7 @@ function extractItemInfo() {
 
       // 최저입찰가
       const lowestBidPrice = document.querySelector("dl.detail_price dd.ar em")?.textContent.trim() || "";
-      if (lowestBidPrice) {
+      if (lowestBidPrice && lowestBidPrice !== "비공개") {
         dataMap["최저입찰가"] = lowestBidPrice + "원";
       }
 
@@ -101,7 +103,10 @@ function extractItemInfo() {
       }
     }
 
-    itemInfo.failureCount = dataMap["유찰횟수"] || '';
+    if (dataMap["유찰횟수"]) {
+      const failureMatch = dataMap["유찰횟수"].match(/(\d+)/);
+      itemInfo.failureCount = failureMatch ? failureMatch[1] : '0';
+    }
     
     itemInfo.agency = dataMap["집행기관"] || '';
 
