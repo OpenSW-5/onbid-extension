@@ -1,4 +1,4 @@
-// 온비드 페이지에서 물품 정보를 추출하는 함수
+// 온비드 페이지에서 물품 정보를 추출
 function extractItemInfo() {
   let itemInfo = {
     id: '',
@@ -75,7 +75,7 @@ function extractItemInfo() {
       console.log('테이블: ', itemInfo.tableData);
     }
 
-    // 최종 정보 추출
+    // 5. 최종 정보 추출
     itemInfo.assetType = dataMap["처분방식 / 자산구분"] || '';
     
     itemInfo.usage = dataMap["용도"] || '';
@@ -126,12 +126,12 @@ function extractItemInfo() {
   }
 }
 
-// 현재 페이지가 온비드 사이트인지 확인하는 함수
+// 현재 페이지가 온비드 사이트인지 확인
 function isOnbidWebsite() {
   return window.location.href.startsWith('https://www.onbid.co.kr/');
 }
 
-// 확장 프로그램의 메시지 리스너 설정
+// 확장 프로그램 메시지 리스너 설정
 chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
   if (!isOnbidWebsite()) {
     sendResponse({success: false, error: '온비드 웹사이트에서만 사용 가능합니다.'});
@@ -145,7 +145,7 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
   return true;
 });
 
-// 페이지가 완전히 로드된 후 데이터 초기화
+// 페이지 완전 로드 후 데이터 초기화
 window.addEventListener('load', function() {
   if (isOnbidWebsite()) {
     console.log('온비드 낙찰 확률 예측 확장 프로그램이 실행되었습니다.');
@@ -157,80 +157,8 @@ window.addEventListener('load', function() {
     } catch (e) {
       console.error('데이터 추출 테스트 중 오류:', e);
     }
-    
-    // 필요한 경우 UI 요소 추가
-    if (window.location.href.includes('/product/') || 
-        window.location.href.includes('/item/') ||
-        window.location.href.includes('/ebidPblsala/')) {
-      addUIElementsToPage();
-    }
   }
 });
-
-// 페이지에 UI 요소 추가
-function addUIElementsToPage() {
-  if (!isOnbidWebsite()) return;
-
-  if (document.getElementById('onbid-extension-container')) return;
-  
-  const container = document.createElement('div');
-  container.id = 'onbid-extension-container';
-  container.style.position = 'fixed';
-  container.style.top = '20px';
-  container.style.right = '20px';
-  container.style.zIndex = '9999';
-  container.style.backgroundColor = '#fff';
-  container.style.padding = '10px';
-  container.style.borderRadius = '5px';
-  container.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
-  
-  const button = document.createElement('button');
-  button.textContent = '낙찰 확률 분석';
-  button.style.backgroundColor = '#3b5998';
-  button.style.color = '#fff';
-  button.style.border = 'none';
-  button.style.padding = '8px 12px';
-  button.style.borderRadius = '4px';
-  button.style.cursor = 'pointer';
-  
-  button.addEventListener('click', function() {
-    const result = extractItemInfo();
-    if (result.success) {
-      // 분석 결과 표시
-      const data = result.data;
-      const minBid = data.minBidPrice;
-      const recommendedBid = Math.round(minBid * 1.32);
-      
-      const infoBox = document.createElement('div');
-      infoBox.style.marginTop = '10px';
-      infoBox.style.padding = '10px';
-      infoBox.style.backgroundColor = '#f0f7ff';
-      infoBox.style.borderRadius = '5px';
-      infoBox.style.fontSize = '14px';
-      
-      infoBox.innerHTML = `
-        <div style="margin-bottom:8px;font-weight:bold;">간편 분석 결과</div>
-        <div>최저 입찰가: ${formatCurrency(minBid)}원</div>
-        <div>추천 입찰가: ${formatCurrency(recommendedBid)}원</div>
-        <div>경쟁률: 보통 (예상 1.5배)</div>
-        <div style="margin-top:8px;font-size:12px;color:#666;">더 자세한 분석은 확장 프로그램 아이콘을 클릭하세요.</div>
-      `;
-      
-      // 기존 정보 박스 제거
-      const existingInfoBox = container.querySelector('div');
-      if (existingInfoBox) {
-        container.removeChild(existingInfoBox);
-      }
-      
-      container.appendChild(infoBox);
-    } else {
-      alert('데이터 분석 중 오류가 발생했습니다.');
-    }
-  });
-  
-  container.appendChild(button);
-  document.body.appendChild(container);
-}
 
 // 금액 형식 변환 (1000 -> 1,000)
 function formatCurrency(amount) {

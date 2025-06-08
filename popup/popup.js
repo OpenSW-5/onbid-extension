@@ -2,7 +2,7 @@
 // 1. 초기화 및 메인 로직
 // ================================
 
-let itemInfo = {}; // 전역 변수로 물품 정보 저장
+let itemInfo = {}; // 물품 정보
 let storedRecommendBid = null; // 서버에서 받은 recommend_bid 저장
 let currentPredictedRate = null; // 현재 predicted_rate 저장
 
@@ -87,8 +87,7 @@ function showErrorMessage(message) {
 }
 
 function updateUIWithDefaultValues() {
-  // 초기 게이지 값 설정
-  updateProbabilityGauge(70);
+  updateProbabilityGauge(70); // 초기 게이지 값 설정
 }
 
 // ================================
@@ -109,14 +108,14 @@ function handleAnalyzeClick() {
 
 async function analyzeSpecificBid(bidAmount) {
   try {
-    // 최초 predict 요청: recommend_bid 와 predicted_rate를 받고 저장
+    // 최초 predict 요청 - recommend_bid 와 predicted_rate를 받고 저장
     const result = await getPredictionFromServer(bidAmount);
 
     const probability = result.predicted_rate;
     const recommendedBid = result.recommend_bid;
 
     if (typeof probability === 'number' && typeof recommendedBid === 'number') {
-      storedRecommendBid = recommendedBid; // 최초에 받은 recommend_bid 저장
+      storedRecommendBid = recommendedBid; // 최초에 recommend_bid 받아 저장
       currentPredictedRate = probability;  // predicted_rate 저장
       updateAnalysisResults(probability, bidAmount);
       updateRecommendedInfo(recommendedBid);
@@ -124,7 +123,7 @@ async function analyzeSpecificBid(bidAmount) {
       throw new Error('예측 결과가 올바르지 않습니다');
     }
 
-    // 이후 prob_predict API를 사용하여 predicted_rate만 업데이트
+    // 이후 /prob_predict 를 사용하여 predicted_rate만 업데이트
     await updatePredictedRateOnly(bidAmount);
 
   } catch (error) {
@@ -164,7 +163,7 @@ async function updatePredictedRateOnly(bidAmount) {
 
     if (typeof data.predicted_rate === 'number') {
       currentPredictedRate = data.predicted_rate;
-      // recommend_bid는 최초 받은 값을 유지하며 predicted_rate만 업데이트
+      // recommend_bid는 최초에 받은 값을 유지하며 predicted_rate만 업데이트
       updateAnalysisResults(currentPredictedRate, bidAmount);
       updateRecommendedInfo(storedRecommendBid);
     } else {
@@ -258,7 +257,6 @@ function updateItemInfo(data) {
   
   console.log('받은 데이터:', data);
   
-  // 전역 itemInfo 업데이트
   itemInfo = {
     id: data.id || '',
     category: data.category || '',
